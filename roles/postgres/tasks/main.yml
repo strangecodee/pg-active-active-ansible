@@ -76,9 +76,9 @@
     mode: '0640'
   notify: reload postgres
 
-- name: Enable and start PostgreSQL
+- name: Enable and start real PostgreSQL cluster
   systemd:
-    name: postgresql
-    enabled: yes
+    name: postgresql@16-main
     state: started
+    enabled: yes
 
