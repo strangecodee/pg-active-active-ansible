@@ -1,0 +1,84 @@
+- name: Add PostgreSQL GPG key
+  apt_key:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+
+- name: Add PGDG repository
+  apt_repository:
+    repo: "deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    state: present
+    filename: pgdg
+
+- name: Install PostgreSQL 16 and extensions
+  apt:
+    name:
+      - postgresql-16
+      - postgresql-client-16
+      - postgresql-contrib-16
+      - postgresql-16-pglogical
+    state: present
+    update_cache: yes
+- name: Add PostgreSQL GPG key
+  apt_key:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+
+- name: Add PGDG repository
+  apt_repository:
+    repo: "deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    state: present
+    filename: pgdg
+
+- name: Install PostgreSQL 16 and extensions
+  apt:
+    name:
+      - postgresql-16
+      - postgresql-client-16
+      - postgresql-contrib-16
+      - postgresql-16-pglogical
+    state: present
+    update_cache: yes
+
+- name: Ensure PostgreSQL 16 cluster exists
+  command: pg_createcluster 16 main
+  args:
+    creates: /etc/postgresql/16/main/postgresql.conf
+
+- name: Ensure postgres system user exists
+  user:
+    name: postgres
+    system: yes
+    shell: /usr/sbin/nologin
+
+- name: Ensure WAL directory exists
+  file:
+    path: "{{ pg_wal }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0700'
+
+- name: Configure postgresql.conf
+  template:
+    src: postgresql.conf.j2
+    dest: /etc/postgresql/16/main/postgresql.conf
+    owner: postgres
+    group: postgres
+    mode: '0644'
+  notify: restart postgres
+
+- name: Configure pg_hba.conf
+  template:
+    src: pg_hba.conf.j2
+    dest: /etc/postgresql/16/main/pg_hba.conf
+    owner: postgres
+    group: postgres
+    mode: '0640'
+  notify: reload postgres
+
+- name: Enable and start PostgreSQL
+  systemd:
+    name: postgresql
+    enabled: yes
+    state: started
+

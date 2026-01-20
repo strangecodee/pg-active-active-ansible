@@ -1,0 +1,24 @@
+- name: Set timezone
+  timezone:
+    name: "{{ timezone }}"
+
+- name: Install base packages
+  apt:
+    name:
+      - chrony
+      - curl
+      - wget
+      - gnupg2
+      - ca-certificates
+      - lsb-release
+      - net-tools
+    state: present
+    update_cache: yes
+
+- name: Apply sysctl for VIP & HA
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  loop: "{{ sysctl_params | dict2items }}"

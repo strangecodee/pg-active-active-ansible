@@ -1,0 +1,12 @@
+- name: Active-Active PostgreSQL 16 Platform
+  hosts: postgres
+  become: yes
+  roles:
+    - common
+    - postgres
+    - pglogical
+    - ownership
+    - fdw
+    - haproxy
+    - keepalived
+    - fencing

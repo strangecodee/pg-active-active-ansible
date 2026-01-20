@@ -1,0 +1,21 @@
+timezone: Asia/Kolkata
+
+sysctl_params:
+  net.ipv4.ip_nonlocal_bind: 1
+  net.ipv4.conf.all.arp_ignore: 1
+  net.ipv4.conf.all.arp_announce: 2
+
+pg_conf:
+  wal_level: logical
+  max_replication_slots: 10
+  max_wal_senders: 10
+  max_logical_replication_workers: 8
+  shared_preload_libraries: pglogical
+  synchronous_commit: off
+  wal_compression: on
+  checkpoint_timeout: 15min
+  checkpoint_completion_target: 0.9
+  listen_addresses: "*"
+  tcp_keepalives_idle: 30
+  tcp_keepalives_interval: 10
+  tcp_keepalives_count: 5
