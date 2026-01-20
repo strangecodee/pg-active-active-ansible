@@ -9,50 +9,26 @@
     state: present
     filename: pgdg
 
-- name: Install PostgreSQL 16 and extensions
+- name: Install PostgreSQL 16 and pglogical
   apt:
     name:
       - postgresql-16
       - postgresql-client-16
       - postgresql-contrib-16
       - postgresql-16-pglogical
-    state: present
-    update_cache: yes
-- name: Add PostgreSQL GPG key
-  apt_key:
-    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
-    state: present
-
-- name: Add PGDG repository
-  apt_repository:
-    repo: "deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
-    state: present
-    filename: pgdg
-
-- name: Install PostgreSQL 16 and extensions
-  apt:
-    name:
-      - postgresql-16
-      - postgresql-client-16
-      - postgresql-contrib-16
-      - postgresql-16-pglogical
+      - postgresql-common
     state: present
     update_cache: yes
 
-- name: Ensure PostgreSQL cluster directory exists
-  stat:
-    path: /var/lib/postgresql/16/main
-  register: pgdata
+- name: Check if PostgreSQL cluster exists
+  shell: pg_lsclusters | awk '{print $1,$2}' | grep -q "^16 main$"
+  register: cluster_check
+  failed_when: false
+  changed_when: false
 
-- name: Create PostgreSQL cluster only if missing
+- name: Create PostgreSQL cluster if missing
   command: pg_createcluster 16 main
-  when: not pgdata.stat.exists
-
-- name: Ensure postgres system user exists
-  user:
-    name: postgres
-    system: yes
-    shell: /usr/sbin/nologin
+  when: cluster_check.rc != 0
 
 - name: Ensure WAL directory exists
   file:
@@ -80,10 +56,8 @@
     mode: '0640'
   notify: reload postgres
 
-- name: Enable and start real PostgreSQL cluster
+- name: Start PostgreSQL 16 cluster
   systemd:
     name: postgresql@16-main
     state: started
     enabled: yes
-    daemon_reload: yes
-

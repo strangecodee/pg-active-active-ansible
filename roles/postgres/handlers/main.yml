@@ -1,9 +1,9 @@
 - name: restart postgres
   systemd:
-    name: postgresql
+    name: postgresql@16-main
     state: restarted
 
 - name: reload postgres
   systemd:
-    name: postgresql
+    name: postgresql@16-main
     state: reloaded
