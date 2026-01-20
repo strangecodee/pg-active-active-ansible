@@ -85,4 +85,5 @@
     name: postgresql@16-main
     state: started
     enabled: yes
+    daemon_reload: yes
 
