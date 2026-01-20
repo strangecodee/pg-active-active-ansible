@@ -1,3 +1,12 @@
+
+{% raw %}
+# Include existing pg_hba entries
+{% include '/etc/postgresql/16/main/pg_hba.conf.orig' ignore missing %}
+
+# ---- Custom HA Entries (appended) ----
+{% endraw %}
+# ... rest of your current template content ...
+
 # Local
 local   all             postgres                                peer
 

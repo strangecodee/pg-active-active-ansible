@@ -1,3 +1,10 @@
+{% raw %}
+# Include default PostgreSQL configuration
+{% include '/etc/postgresql/16/main/postgresql.conf.orig' ignore missing %}
+
+# ---- Custom HA Settings (will override defaults above) ----
+{% endraw %}
+# ... rest of your current template content ...
 # ---- Logical Replication ----
 wal_level = logical
 max_replication_slots = 10
