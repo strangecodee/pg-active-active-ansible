@@ -39,10 +39,14 @@
     state: present
     update_cache: yes
 
-- name: Ensure PostgreSQL 16 cluster exists
+- name: Ensure PostgreSQL cluster directory exists
+  stat:
+    path: /var/lib/postgresql/16/main
+  register: pgdata
+
+- name: Create PostgreSQL cluster only if missing
   command: pg_createcluster 16 main
-  args:
-    creates: /etc/postgresql/16/main/postgresql.conf
+  when: not pgdata.stat.exists
 
 - name: Ensure postgres system user exists
   user:
