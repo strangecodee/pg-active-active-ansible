@@ -1,0 +1,25 @@
+- name: Install HAProxy
+  apt:
+    name: haproxy
+    state: present
+    update_cache: yes
+
+- name: Ensure HAProxy config directory exists
+  file:
+    path: /etc/haproxy
+    state: directory
+    mode: '0755'
+
+- name: Deploy HAProxy config for PostgreSQL VIP
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    mode: '0644'
+  notify: restart haproxy
+
+- name: Enable and start HAProxy
+  systemd:
+    name: haproxy
+    state: started
+    enabled: yes
+

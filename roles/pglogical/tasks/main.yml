@@ -1,0 +1,125 @@
+- name: Ensure PostgreSQL 16 cluster is running
+  systemd:
+    name: postgresql@16-main
+    state: started
+    enabled: yes
+
+- name: Ensure replication superuser exists
+  shell: |
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='{{ repl_user }}'" | grep -q 1 \
+    || sudo -u postgres psql -c "CREATE ROLE {{ repl_user }} WITH LOGIN SUPERUSER REPLICATION PASSWORD '{{ repl_password }}';"
+
+- name: Ensure application database exists
+  shell: |
+    sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='{{ db_name }}'" | grep -q 1 \
+    || sudo -u postgres psql -c "CREATE DATABASE {{ db_name }} OWNER {{ repl_user }};"
+
+- name: Ensure pglogical extension exists
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} -c "CREATE EXTENSION IF NOT EXISTS pglogical;"
+
+- name: Register pglogical node if missing
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} <<'SQL'
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pglogical.node WHERE node_name = '{{ inventory_hostname }}'
+      ) THEN
+        PERFORM pglogical.create_node(
+          node_name := '{{ inventory_hostname }}',
+          dsn := 'host={{ ansible_host }} port={{ pg_port }} dbname={{ db_name }} user={{ repl_user }} password={{ repl_password }}'
+        );
+      END IF;
+    END
+    $$;
+    SQL
+
+- name: Create replication set rs_active if missing
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} <<'SQL'
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pglogical.replication_set WHERE set_name = 'rs_active'
+      ) THEN
+        PERFORM pglogical.create_replication_set(
+          set_name := 'rs_active',
+          replicate_insert := true,
+          replicate_update := true,
+          replicate_delete := true,
+          replicate_truncate := true
+        );
+      END IF;
+    END
+    $$;
+    SQL
+
+- name: Add orders_test table to replication set
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} <<'SQL'
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pglogical.replication_set_table rst
+        JOIN pglogical.replication_set rs ON rs.set_id = rst.set_id
+        WHERE rs.set_name = 'rs_active'
+          AND rst.set_reloid = 'orders_test'::regclass
+      ) THEN
+        PERFORM pglogical.replication_set_add_table(
+          set_name := 'rs_active',
+          relation := 'orders_test',
+          synchronize_data := true
+        );
+      END IF;
+    END
+    $$;
+    SQL
+
+- name: ODD subscribes to EVEN
+  when: node_role == "ODD"
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} <<'SQL'
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pglogical.subscription WHERE sub_name = 'sub_odd_to_even'
+      ) THEN
+        PERFORM pglogical.create_subscription(
+          subscription_name := 'sub_odd_to_even',
+          provider_dsn := 'host={{ hostvars["btsdbact02"].ansible_host }} port={{ pg_port }} dbname={{ db_name }} user={{ repl_user }} password={{ repl_password }}',
+          replication_sets := ARRAY['rs_active']
+        );
+      END IF;
+    END
+    $$;
+    SQL
+
+- name: EVEN subscribes to ODD
+  when: node_role == "EVEN"
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} <<'SQL'
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pglogical.subscription WHERE sub_name = 'sub_even_to_odd'
+      ) THEN
+        PERFORM pglogical.create_subscription(
+          subscription_name := 'sub_even_to_odd',
+          provider_dsn := 'host={{ hostvars["btsdbact01"].ansible_host }} port={{ pg_port }} dbname={{ db_name }} user={{ repl_user }} password={{ repl_password }}',
+          replication_sets := ARRAY['rs_active']
+        );
+      END IF;
+    END
+    $$;
+    SQL
+
+- name: Check replication health
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} -c "SELECT subscription_name, status FROM pglogical.show_subscription_status();"
+  register: repl_status
+
+- name: Show replication status
+  debug:
+    var: repl_status.stdout_lines

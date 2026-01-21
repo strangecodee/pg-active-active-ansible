@@ -1,0 +1,45 @@
+- name: Install keepalived
+  apt:
+    name: keepalived
+    state: present
+    update_cache: yes
+
+- name: Ensure keepalived directories exist
+  file:
+    path: /etc/keepalived
+    state: directory
+    mode: '0755'
+
+- name: Ensure keepalived script user exists
+  user:
+    name: keepalived_script
+    system: yes
+    shell: /usr/sbin/nologin
+
+- name: Deploy HAProxy health check script
+  copy:
+    src: chk_haproxy.sh
+    dest: /etc/keepalived/chk_haproxy.sh
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Deploy VIP notify script
+  copy:
+    src: notify_vip.sh
+    dest: /etc/keepalived/notify_vip.sh
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Deploy keepalived configuration
+  template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+  notify: restart keepalived
+
+- name: Enable and start keepalived
+  systemd:
+    name: keepalived
+    state: started
+    enabled: yes
