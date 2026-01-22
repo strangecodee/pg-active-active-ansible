@@ -19,3 +19,9 @@ pg_conf:
   tcp_keepalives_idle: 30
   tcp_keepalives_interval: 10
   tcp_keepalives_count: 5
+
+test_sizes:
+  - 100
+  - 200
+  - 500
+  - 1000

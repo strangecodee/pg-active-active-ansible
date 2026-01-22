@@ -2,10 +2,13 @@
   set_fact:
     peer_host: "{{ hostvars[groups['postgres'] | difference([inventory_hostname]) | first].ansible_host }}"
 
-# ------------------ FDW SETUP ------------------
+# ---------------- FDW BASE ----------------
 
-- name: Ensure postgres_fdw extension exists
+- name: Ensure postgres_fdw extension
   shell: sudo -u postgres psql -d {{ db_name }} -c "CREATE EXTENSION IF NOT EXISTS postgres_fdw;"
+
+- name: Ensure fdw schema exists
+  shell: sudo -u postgres psql -d {{ db_name }} -c "CREATE SCHEMA IF NOT EXISTS fdw;"
 
 - name: Ensure FDW server exists
   shell: |
@@ -20,7 +23,25 @@
     END$$;
     SQL
 
-- name: Ensure FDW user mapping exists
+- name: Ensure FDW user mapping for postgres
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} <<'SQL'
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_user_mappings um
+        JOIN pg_foreign_server s ON um.srvid=s.oid
+        WHERE s.srvname='peer_srv'
+          AND um.umuser=(SELECT oid FROM pg_roles WHERE rolname='postgres')
+      ) THEN
+        CREATE USER MAPPING FOR postgres
+        SERVER peer_srv
+        OPTIONS (user '{{ repl_user }}', password '{{ repl_password }}');
+      END IF;
+    END$$;
+    SQL
+
+- name: Ensure FDW user mapping for repluser
   shell: |
     sudo -u postgres psql -d {{ db_name }} <<'SQL'
     DO $$
@@ -38,43 +59,44 @@
     END$$;
     SQL
 
-- name: Ensure foreign table exists
+- name: Import orders_test as foreign table into fdw schema
   shell: |
     sudo -u postgres psql -d {{ db_name }} <<'SQL'
     DO $$
     BEGIN
       IF NOT EXISTS (
         SELECT 1 FROM information_schema.foreign_tables
-        WHERE foreign_table_name='orders_test_peer'
+        WHERE foreign_table_schema='fdw'
+          AND foreign_table_name='orders_test_peer'
       ) THEN
         IMPORT FOREIGN SCHEMA public
         LIMIT TO (orders_test)
         FROM SERVER peer_srv
-        INTO public;
-        ALTER FOREIGN TABLE orders_test RENAME TO orders_test_peer;
+        INTO fdw;
+        ALTER FOREIGN TABLE fdw.orders_test RENAME TO orders_test_peer;
       END IF;
     END$$;
     SQL
 
-# ------------------ NODE IDENTITY ------------------
+# ---------------- NODE IDENTITY ----------------
 
 - name: Create node identity functions
   shell: |
     sudo -u postgres psql -d {{ db_name }} <<'SQL'
-    CREATE OR REPLACE FUNCTION local_node()
+    CREATE OR REPLACE FUNCTION public.local_node()
     RETURNS text LANGUAGE sql STABLE AS $$
       SELECT current_setting('app.node_role');
     $$;
 
-    CREATE OR REPLACE FUNCTION owner_node(p_id bigint)
+    CREATE OR REPLACE FUNCTION public.owner_node(p_id bigint)
     RETURNS text LANGUAGE sql IMMUTABLE AS $$
       SELECT CASE WHEN p_id % 2 = 1 THEN 'ODD' ELSE 'EVEN' END;
     $$;
     SQL
 
-# ------------------ SEQUENCE PARITY ------------------
+# ---------------- SEQUENCE PARITY ----------------
 
-- name: Enforce ODD sequence parity
+- name: Enforce ODD sequence
   when: node_role == "ODD"
   shell: |
     sudo -u postgres psql -d {{ db_name }} -c "
@@ -82,7 +104,7 @@
     SELECT setval('orders_test_id_seq', 1, false);
     "
 
-- name: Enforce EVEN sequence parity
+- name: Enforce EVEN sequence
   when: node_role == "EVEN"
   shell: |
     sudo -u postgres psql -d {{ db_name }} -c "
@@ -90,12 +112,12 @@
     SELECT setval('orders_test_id_seq', 2, false);
     "
 
-# ------------------ INSERT OWNERSHIP ------------------
+# ---------------- INSERT OWNERSHIP ----------------
 
-- name: Create insert guard function
+- name: Create insert guard
   shell: |
     sudo -u postgres psql -d {{ db_name }} <<'SQL'
-    CREATE OR REPLACE FUNCTION orders_insert_guard()
+    CREATE OR REPLACE FUNCTION public.orders_insert_guard()
     RETURNS trigger LANGUAGE plpgsql AS $$
     BEGIN
       IF current_setting('session_replication_role') = 'replica' THEN
@@ -106,13 +128,13 @@
         NEW.id := nextval('orders_test_id_seq');
       END IF;
 
-      IF local_node() <> owner_node(NEW.id) THEN
+      IF public.local_node() <> public.owner_node(NEW.id) THEN
         RAISE EXCEPTION
           'Wrong node. ID % belongs to % node.',
-          NEW.id, owner_node(NEW.id);
+          NEW.id, public.owner_node(NEW.id);
       END IF;
 
-      NEW.node := local_node();
+      NEW.node := public.local_node();
       RETURN NEW;
     END;
     $$;
@@ -125,26 +147,26 @@
     CREATE TRIGGER trg_orders_insert
     BEFORE INSERT ON orders_test
     FOR EACH ROW
-    EXECUTE FUNCTION orders_insert_guard();
+    EXECUTE FUNCTION public.orders_insert_guard();
     SQL
 
-# ------------------ UPDATE ROUTING (FDW) ------------------
+# ---------------- UPDATE ROUTING ----------------
 
-- name: Create update router function
+- name: Create update router
   shell: |
     sudo -u postgres psql -d {{ db_name }} <<'SQL'
-    CREATE OR REPLACE FUNCTION orders_update_router()
+    CREATE OR REPLACE FUNCTION public.orders_update_router()
     RETURNS trigger LANGUAGE plpgsql AS $$
     BEGIN
       IF current_setting('session_replication_role') = 'replica' THEN
         RETURN NEW;
       END IF;
 
-      IF local_node() = owner_node(OLD.id) THEN
+      IF public.local_node() = public.owner_node(OLD.id) THEN
         RETURN NEW;
       END IF;
 
-      UPDATE orders_test_peer
+      UPDATE fdw.orders_test_peer
       SET item = NEW.item, qty = NEW.qty
       WHERE id = OLD.id;
 
@@ -160,26 +182,26 @@
     CREATE TRIGGER trg_orders_update
     BEFORE UPDATE ON orders_test
     FOR EACH ROW
-    EXECUTE FUNCTION orders_update_router();
+    EXECUTE FUNCTION public.orders_update_router();
     SQL
 
-# ------------------ DELETE ROUTING (FDW) ------------------
+# ---------------- DELETE ROUTING ----------------
 
-- name: Create delete router function
+- name: Create delete router
   shell: |
     sudo -u postgres psql -d {{ db_name }} <<'SQL'
-    CREATE OR REPLACE FUNCTION orders_delete_router()
+    CREATE OR REPLACE FUNCTION public.orders_delete_router()
     RETURNS trigger LANGUAGE plpgsql AS $$
     BEGIN
       IF current_setting('session_replication_role') = 'replica' THEN
         RETURN OLD;
       END IF;
 
-      IF local_node() = owner_node(OLD.id) THEN
+      IF public.local_node() = public.owner_node(OLD.id) THEN
         RETURN OLD;
       END IF;
 
-      DELETE FROM orders_test_peer WHERE id = OLD.id;
+      DELETE FROM fdw.orders_test_peer WHERE id = OLD.id;
       RETURN NULL;
     END;
     $$;
@@ -192,12 +214,6 @@
     CREATE TRIGGER trg_orders_delete
     BEFORE DELETE ON orders_test
     FOR EACH ROW
-    EXECUTE FUNCTION orders_delete_router();
+    EXECUTE FUNCTION public.orders_delete_router();
     SQL
 
-- name: Debug
-  debug:
-    msg:
-      - "Node = {{ node_role }}"
-      - "DB = {{ db_name }}"
-      - "Peer = {{ peer_host }}"

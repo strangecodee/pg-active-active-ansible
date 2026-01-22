@@ -1,0 +1,8 @@
+- name: Active-Active PostgreSQL Routing & Replication Tests
+  hosts: postgres
+  become: yes
+  vars:
+    test_sizes: [100, 200, 500, 1000]
+  roles:
+    - ../roles/tests
+

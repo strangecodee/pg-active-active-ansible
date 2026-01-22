@@ -1,0 +1,74 @@
+# INSERT on local node only
+- name: "===== INSERT {{ scale }} rows on {{ inventory_hostname }} ====="
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} <<'SQL'
+    INSERT INTO orders_test(item, qty)
+    SELECT
+      'item_' || g || '_{{ node_role }}',
+      g
+    FROM generate_series(1, {{ scale }}) g;
+    SQL
+  register: insert_out
+
+- debug:
+    var: insert_out.stdout_lines
+
+
+# UPDATE routed rows (cross-node via FDW trigger)
+- name: "===== UPDATE routed rows on {{ inventory_hostname }} ====="
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} -c "
+    UPDATE orders_test
+    SET qty = qty + 1000
+    WHERE owner_node(id) <> local_node();"
+  register: update_out
+
+- debug:
+    var: update_out.stdout_lines
+
+
+- name: Wait 30 seconds before delete
+  pause:
+    seconds: 30
+
+
+# DELETE routed rows (cross-node via FDW trigger)
+- name: "===== DELETE routed rows on {{ inventory_hostname }} ====="
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} -c "
+    DELETE FROM orders_test
+    WHERE owner_node(id) <> local_node();"
+  register: delete_out
+
+- debug:
+    var: delete_out.stdout_lines
+
+
+# DISTRIBUTION CHECK
+- name: "Verify distribution after {{ scale }} on {{ inventory_hostname }}"
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} -c "
+    SELECT
+      count(*) AS total,
+      count(*) FILTER (WHERE id % 2 = 1) AS odd_rows,
+      count(*) FILTER (WHERE id % 2 = 0) AS even_rows
+    FROM orders_test;"
+  register: dist_out
+
+- debug:
+    var: dist_out.stdout_lines
+
+
+# REPLICATION HEALTH
+- name: "Show pglogical status on {{ inventory_hostname }}"
+  shell: |
+    sudo -u postgres psql -d {{ db_name }} -c "
+    SELECT
+      subscription_name,
+      status,
+      provider_node
+    FROM pglogical.show_subscription_status();"
+  register: repl_out
+
+- debug:
+    var: repl_out.stdout_lines

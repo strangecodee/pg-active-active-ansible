@@ -8,6 +8,8 @@
   file:
     path: /etc/keepalived
     state: directory
+    owner: root
+    group: root
     mode: '0755'
 
 - name: Ensure keepalived script user exists
@@ -15,27 +17,31 @@
     name: keepalived_script
     system: yes
     shell: /usr/sbin/nologin
+    create_home: no
 
 - name: Deploy HAProxy health check script
   copy:
     src: chk_haproxy.sh
     dest: /etc/keepalived/chk_haproxy.sh
-    mode: '0755'
     owner: root
     group: root
+    mode: '0755'
 
 - name: Deploy VIP notify script
   copy:
     src: notify_vip.sh
     dest: /etc/keepalived/notify_vip.sh
-    mode: '0755'
     owner: root
     group: root
+    mode: '0755'
 
-- name: Deploy keepalived configuration
+- name: Deploy keepalived configuration (Unicast VRRP)
   template:
     src: keepalived.conf.j2
     dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: '0644'
   notify: restart keepalived
 
 - name: Enable and start keepalived

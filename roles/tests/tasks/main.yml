@@ -1,0 +1,17 @@
+- name: Truncate orders table (no identity reset)
+  shell: sudo -u postgres psql -d {{ db_name }} -c "TRUNCATE orders_test;"
+  run_once: true
+
+- name: Enforce ODD sequence
+  when: node_role == "ODD"
+  shell: sudo -u postgres psql -d {{ db_name }} -c "SELECT setval('orders_test_id_seq', 1, false);"
+
+- name: Enforce EVEN sequence
+  when: node_role == "EVEN"
+  shell: sudo -u postgres psql -d {{ db_name }} -c "SELECT setval('orders_test_id_seq', 2, false);"
+
+- name: Run scale tests on both nodes
+  include_tasks: scale_test.yml
+  loop: "{{ test_sizes }}"
+  loop_control:
+    loop_var: scale
