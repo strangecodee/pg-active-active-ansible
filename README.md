@@ -1,23 +1,26 @@
 # PostgreSQL Active-Active Cluster Setup
 
 An Ansible playbook to deploy a PostgreSQL 16 active-active cluster with high availability using pglogical, HAProxy, and Keepalived.
-
 ## Table of Contents
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Prerequisites](#prerequisites)
-- [Ansible Setup](#ansible-setup)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [Services](#services)
-- [Maintenance](#maintenance)
-- [Troubleshooting](#troubleshooting)
-- [Security](#security)
-- [Backup and Recovery](#backup-and-recovery)
-- [Scaling](#scaling)
-- [License](#license)
+
+| Section | Description |
+|-------|-------------|
+| [Overview](#overview) | Project purpose, scope, and objectives |
+| [Features](#features) | Core capabilities and supported functionality |
+| [Architecture](#architecture) | System design, components, and data flow |
+| [Prerequisites](#prerequisites) | Required software, access, and dependencies |
+| [Ansible Setup](#ansible-setup) | Automation framework configuration and roles |
+| [Installation](#installation) | Deployment and initial setup procedures |
+| [Configuration](#configuration) | Environment-specific settings and customization |
+| [Usage](#usage) | Operational guidelines and examples |
+| [Services](#services) | Managed services and integrations |
+| [Maintenance](#maintenance) | Operational tasks and lifecycle management |
+| [Troubleshooting](#troubleshooting) | Diagnostics, common issues, and resolutions |
+| [Security](#security) | Authentication, authorization, and hardening practices |
+| [Backup and Recovery](#backup-and-recovery) | Data protection, retention, and restoration strategies |
+| [Scaling](#scaling) | Performance optimization and capacity planning |
+| [License](#license) | Legal terms and usage rights |
+
 
 ## Overview
 
@@ -25,18 +28,24 @@ This playbook deploys a PostgreSQL 16 active-active cluster designed for high av
 
 ## Features
 
-- **Active-Active PostgreSQL Cluster**: Two PostgreSQL 16 nodes configured for active-active replication
-- **Logical Replication**: Uses pglogical for efficient logical replication
-- **High Availability**: Automatic failover with VIP management
-- **Load Balancing**: HAProxy for connection load balancing
-- **VIP Management**: Keepalived for virtual IP failover
-- **Configuration Preservation**: Appends settings to existing PostgreSQL configs (doesn't replace)
-- **Network Security**: Configured authentication via pg_hba.conf
-- **Performance Tuning**: Optimized settings for replication and performance
-- **System Optimization**: Kernel parameter tuning for HA
-- **Monitoring Ready**: Pre-configured for monitoring integration
+| Feature Area | Description |
+|-------------|-------------|
+| Active-Active PostgreSQL Cluster | Two PostgreSQL 16 nodes configured for active-active replication |
+| Logical Replication | Logical replication implemented using pglogical for efficient data synchronization |
+| High Availability | Automatic failover with virtual IP (VIP) management |
+| Load Balancing | HAProxy-based connection load balancing across nodes |
+| VIP Management | Keepalived for seamless virtual IP failover |
+| Configuration Preservation | Appends configuration settings without overwriting existing PostgreSQL configurations |
+| Network Security | Secure client authentication configured via pg_hba.conf |
+| Performance Tuning | Optimized PostgreSQL settings for replication and workload performance |
+| System Optimization | Kernel and OS-level parameter tuning for high availability workloads |
+| Monitoring Readiness | Pre-configured for integration with enterprise monitoring solutions |
+
 
 ## Architecture
+<p align="center">
+  <img src="docs/architecture-diagram.svg" alt="PostgreSQL Active-Active Cluster Architecture" width="800" />
+</p>
 
 The architecture consists of:
 
@@ -362,3 +371,5 @@ sudo -u postgres psql -c "SELECT * FROM pg_stat_replication;"
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+<div align="center"><em>Made with ❤️ for the PostgreSQL Community ⭐ Star this repo if you found it helpful!</em></div>
