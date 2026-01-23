@@ -43,8 +43,8 @@ This playbook deploys a PostgreSQL 16 active-active cluster designed for high av
 
 
 ## Architecture
-<p align="center">
-  <img src="docs/architecture-diagram.svg" alt="PostgreSQL Active-Active Cluster Architecture" width="800" />
+<p align="left">
+  <img src="docs/architecture-diagram.png" alt="PostgreSQL Active-Active Cluster Architecture" width="800" />
 </p>
 
 The architecture consists of:
@@ -372,4 +372,4 @@ sudo -u postgres psql -c "SELECT * FROM pg_stat_replication;"
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-<div align="center"><em>Made with ❤️ for the PostgreSQL Community ⭐ Star this repo if you found it helpful!</em></div>
+<br><br><div align="center"><em>Made with ❤️ for the PostgreSQL Community ⭐ Star this repo if you found it helpful!</em></div>
