@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/banner.png" alt="Banner" width="800" />
+</div>
+
 # PostgreSQL Active-Active Cluster Setup
 
 An Ansible playbook to deploy a PostgreSQL 16 active-active cluster with high availability using pglogical, HAProxy, and Keepalived.
