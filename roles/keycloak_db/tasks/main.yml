@@ -4,6 +4,7 @@
   run_once: true
 
 - name: Create Keycloak DB user
+  become: yes
   become_user: postgres
   postgresql_user:
     name: kc_user
@@ -12,6 +13,7 @@
     state: present
 
 - name: Create Keycloak database
+  become: yes
   become_user: postgres
   postgresql_db:
     name: keycloak
@@ -19,6 +21,8 @@
     state: present
 
 - name: Allow Keycloak node access
+  become: yes
+  become_user: postgres
   lineinfile:
     path: /etc/postgresql/16/main/pg_hba.conf
     line: "host  keycloak  kc_user  140.245.6.225/32  md5"
@@ -26,6 +30,7 @@
   notify: reload postgres
 
 - name: Enable pglogical in Keycloak DB
+  become: yes
   become_user: postgres
   postgresql_ext:
     name: pglogical
@@ -33,6 +38,7 @@
     state: present
 
 - name: Register Keycloak pglogical node
+  become: yes
   become_user: postgres
   shell: |
     psql -d keycloak -c "
@@ -44,6 +50,7 @@
     );"
 
 - name: Create Keycloak replication set
+  become: yes
   become_user: postgres
   shell: |
     psql -d keycloak -c "
@@ -53,6 +60,7 @@
     );"
 
 - name: Subscribe to peer Keycloak node
+  become: yes
   become_user: postgres
   shell: |
     psql -d keycloak -c "
