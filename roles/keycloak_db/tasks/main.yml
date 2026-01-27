@@ -1,67 +1,66 @@
-- name: Create Keycloak database
-  become_user: postgres
-  postgresql_db:
-    name: keycloak
-    encoding: UTF8
-    lc_collate: C
-    lc_ctype: C
-    state: present
+- name: Generate Keycloak DB password (shared)
+  set_fact:
+    kc_password: "{{ lookup('password', '/tmp/kc_pass length=24 chars=ascii_letters,digits') }}"
+  run_once: true
 
 - name: Create Keycloak DB user
   become_user: postgres
   postgresql_user:
     name: kc_user
-    password: "{{ kc_db_password }}"
-    role_attr_flags: LOGIN
+    password: "{{ kc_password }}"
+    role_attr_flags: "LOGIN,REPLICATION"
     state: present
 
-- name: Grant privileges on Keycloak DB
+- name: Create Keycloak database
   become_user: postgres
-  postgresql_privs:
-    db: keycloak
-    role: kc_user
-    type: database
-    privs: ALL
+  postgresql_db:
+    name: keycloak
+    owner: kc_user
+    state: present
 
-- name: Add pg_hba rule for Keycloak node
-  template:
-    src: pg_hba_keycloak.conf.j2
-    dest: /etc/postgresql/16/main/pg_hba.d/keycloak.conf
+- name: Allow Keycloak node access
+  lineinfile:
+    path: /etc/postgresql/16/main/pg_hba.conf
+    line: "host  keycloak  kc_user  140.245.6.225/32  md5"
+    state: present
   notify: reload postgres
 
-- name: Ensure pglogical extension in keycloak DB
+- name: Enable pglogical in Keycloak DB
   become_user: postgres
   postgresql_ext:
     name: pglogical
     db: keycloak
     state: present
 
-- name: Register pglogical node for Keycloak
+- name: Register Keycloak pglogical node
   become_user: postgres
   shell: |
     psql -d keycloak -c "
     SELECT pglogical.create_node(
       node_name := '{{ inventory_hostname }}_kc',
-      dsn := 'host={{ ansible_host }} port=5432 dbname=keycloak user=kc_user password={{ kc_db_password }}'
+      dsn := 'host={{ ansible_host }} dbname=keycloak user=kc_user password={{ kc_password }}'
+    ) WHERE NOT EXISTS (
+      SELECT 1 FROM pglogical.node WHERE node_name='{{ inventory_hostname }}_kc'
     );"
-  args:
-    creates: "/tmp/kc_node_{{ inventory_hostname }}"
-  register: kc_node
-  changed_when: "'already exists' not in kc_node.stderr"
 
 - name: Create Keycloak replication set
   become_user: postgres
   shell: |
     psql -d keycloak -c "
-    SELECT pglogical.create_replication_set('rs_keycloak');"
-  ignore_errors: yes
+    SELECT pglogical.create_replication_set('rs_keycloak')
+    WHERE NOT EXISTS (
+      SELECT 1 FROM pglogical.replication_set WHERE set_name='rs_keycloak'
+    );"
 
-- name: Add all tables to Keycloak replication set
+- name: Subscribe to peer Keycloak node
   become_user: postgres
   shell: |
     psql -d keycloak -c "
-    SELECT pglogical.replication_set_add_all_tables(
-      set_name := 'rs_keycloak',
-      schema_names := ARRAY['public']
+    SELECT pglogical.create_subscription(
+      subscription_name := 'sub_{{ inventory_hostname }}_kc',
+      provider_dsn := 'host={{ peer_host }} dbname=keycloak user=kc_user password={{ kc_password }}',
+      replication_sets := ARRAY['rs_keycloak']
+    ) WHERE NOT EXISTS (
+      SELECT 1 FROM pglogical.subscription
+      WHERE sub_name='sub_{{ inventory_hostname }}_kc'
     );"
-  ignore_errors: yes
