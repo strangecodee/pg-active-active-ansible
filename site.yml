@@ -10,3 +10,4 @@
     - haproxy
     - keepalived
     - fencing
+    - keycloak_db

@@ -1,0 +1,2 @@
+kc_db_password: "{{ lookup('password', 'credentials/kc_db_password length=24 chars=ascii_letters,digits') }}"
+
