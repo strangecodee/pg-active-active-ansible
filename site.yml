@@ -5,8 +5,10 @@
     - common
     - postgres
     - pglogical
+    - dns_routing
     - ownership
     - fdw
     - haproxy
-    - keepalived
-    - fencing
+    # keepalived and fencing disabled when using DNS routing instead of VIP
+    # - keepalived
+    # - fencing

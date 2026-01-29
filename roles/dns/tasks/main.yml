@@ -1,0 +1,8 @@
+- name: Configure DB DNS name in /etc/hosts
+  become: yes
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} DB LAB DNS"
+    block: |
+      {{ hostvars[groups['odd'][0]].ansible_host }} {{ db_dns_name }}
+      {{ hostvars[groups['even'][0]].ansible_host }} {{ db_dns_name }}

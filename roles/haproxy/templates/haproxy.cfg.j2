@@ -1,28 +1,23 @@
 global
     log /dev/log local0
-    log /dev/log local1 notice
+    maxconn 10000
     daemon
-    maxconn 2048
 
 defaults
-    log global
-    mode tcp
-    option tcplog
+    log     global
+    mode    tcp
+    option  tcplog
     timeout connect 10s
-    timeout client 1m
-    timeout server 1m
+    timeout client  1m
+    timeout server  1m
 
-frontend pg_vip
-    bind {{ vip_ip }}:{{ haproxy_port }}
-    default_backend pg_nodes
+frontend postgres_front
+    bind *:{{ haproxy_port }}
+    default_backend postgres_back
 
-backend pg_nodes
+backend postgres_back
     balance roundrobin
     option tcp-check
-    tcp-check connect port {{ pg_port }}
-    default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
 
-{% for host in groups['postgres'] %}
-    server {{ host }} {{ hostvars[host].ansible_host }}:{{ pg_port }} check
-{% endfor %}
-
+    server odd_node  {{ hostvars[groups['odd'][0]].ansible_host }}:{{ pg_port }} check
+    server even_node {{ hostvars[groups['even'][0]].ansible_host }}:{{ pg_port }} check

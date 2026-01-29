@@ -34,9 +34,11 @@ This playbook deploys a PostgreSQL 16 active-active cluster designed for high av
 |-------------|-------------|
 | Active-Active PostgreSQL Cluster | Two PostgreSQL 16 nodes configured for active-active replication |
 | Logical Replication | Logical replication implemented using pglogical for efficient data synchronization |
-| High Availability | Automatic failover with virtual IP (VIP) management |
+| High Availability | Automatic failover with Virtual IP (VIP) Management (*disabled ) |
+| High Availability | Automatic failover with DNS-based routing |
 | Load Balancing | HAProxy-based connection load balancing across nodes |
-| VIP Management | Keepalived for seamless virtual IP failover |
+| VIP Management | keepalived for seamless virtual IP failover (*disabled)|
+| DNS Routing | DNS-based routing for seamless failover |
 | Configuration Preservation | Appends configuration settings without overwriting existing PostgreSQL configurations |
 | Network Security | Secure client authentication configured via pg_hba.conf |
 | Performance Tuning | Optimized PostgreSQL settings for replication and workload performance |
@@ -52,15 +54,15 @@ This playbook deploys a PostgreSQL 16 active-active cluster designed for high av
 The architecture consists of:
 
 - **Two PostgreSQL Nodes**: Primary and secondary nodes with bi-directional replication
-- **Virtual IP (VIP)**: Managed by Keepalived for seamless failover
+- **DNS Routing**: DNS-based routing for seamless failover
 - **HAProxy**: Load balancer distributing connections to PostgreSQL nodes
 - **pglogical**: Logical replication engine for active-active setup
 - **Fencing**: Prevents split-brain scenarios
 - **Foreign Data Wrappers**: For cross-database access
 
 ### Node Roles
-- **ODD Node**: Higher VRRP priority (primary)
-- **EVEN Node**: Lower VRRP priority (secondary)
+- **ODD Node**: Primary node for DNS routing
+- **EVEN Node**: Secondary node for failover
 
 ## Prerequisites
 
@@ -77,8 +79,8 @@ The architecture consists of:
 
 ### Network Requirements
 - Static IP addresses for each node
-- VIP address that can float between nodes
-- Firewall rules allowing PostgreSQL (5432), HAProxy (5433), and VRRP traffic
+- DNS record for application access
+- Firewall rules allowing PostgreSQL (5432) and HAProxy (5433) traffic
 
 ## Ansible Setup
 
@@ -226,26 +228,26 @@ repl_password=Pass123
 - **ownership**: Database ownership and permission management
 - **fdw**: Foreign Data Wrapper configuration
 - **haproxy**: Load balancer setup and configuration
-- **keepalived**: VIP management and failover
-- **fencing**: Split-brain prevention mechanisms
+- **dns-routing**: DNS-based routing for application connections
+- **health-checks**: Health checks for failover detection
 
 ## Usage
 
 ### Initial Setup
-After deployment, the cluster will be ready for use. Connect to the database using the VIP address:
+After deployment, the cluster will be ready for use. Connect to the database using the DNS name:
 
 ```bash
-psql -h <VIP_ADDRESS> -U <USER> -d <DATABASE>
+psql -h {{ db_dns_name }} -U <USER> -d <DATABASE>
 ```
 ### Connection Information
 - **Direct Node Access**: Port 5432 on individual nodes
 - **Load Balanced Access**: Port 5433 via HAProxy
-- **Application Connection**: Use VIP address for transparent failover
+- **Application Connection**: Use DNS name for transparent failover
 
 ### Testing Failover
-1. Check current VIP holder: `ip addr show <interface>`
+1. Check DNS resolution for {{ db_dns_name }}
 2. Stop PostgreSQL on active node: `sudo systemctl stop postgresql`
-3. Verify VIP moved to other node
+3. Verify traffic routes to other node
 4. Restart PostgreSQL: `sudo systemctl start postgresql`
 
 ## Services
@@ -261,11 +263,11 @@ psql -h <VIP_ADDRESS> -U <USER> -d <DATABASE>
 - **Config**: `/etc/haproxy/haproxy.cfg`
 - **Stats**: Available at `/haproxy-stats` endpoint
 
-### Keepalived
-- **Protocol**: VRRP
-- **Service**: keepalived
-- **VIP**: Configured VIP address
-- **Interface**: Specified network interface
+### DNS Routing
+- **Protocol**: DNS
+- **Service**: DNS resolver
+- **Routing**: Application DNS name
+- **Failover**: DNS-based failover mechanism
 
 ## Maintenance
 
