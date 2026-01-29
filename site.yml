@@ -5,7 +5,7 @@
     - common
     - postgres
     - pglogical
-    - dns_routing
+    - dns
     - ownership
     - fdw
     - haproxy

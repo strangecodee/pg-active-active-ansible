@@ -78,7 +78,7 @@
       host    all             all                    {{ db_dns_name }}/32       md5
 
       # Application via IP
-      host    all             all                    {{ vip_ip }}/32            md5
+      # host    all             all                    {{ vip_ip }}/32            md5
 
       # Replication user
       host    replication     {{ repl_user }}        10.0.0.0/24                md5
